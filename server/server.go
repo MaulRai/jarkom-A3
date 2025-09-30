@@ -250,7 +250,7 @@ func determineEncoding(acceptEncoding string) string {
 		return "none"
 	}
 
-	return "gzip"
+	return "invalid"
 }
 
 func RequestDecoder(bytestream []byte) HttpRequest {
