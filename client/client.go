@@ -73,11 +73,6 @@ func main() {
 	acceptEncoding, _ := reader.ReadString('\n')
 	acceptEncoding = strings.TrimSpace(acceptEncoding)
 
-	if acceptEncoding != "none" && acceptEncoding != "gzip" && acceptEncoding != "deflate" {
-		fmt.Printf("Invalid encoding: %s. Only 'gzip', 'deflate', or 'none' are allowed.\n", acceptEncoding)
-		return
-	}
-
 	httpReq := HttpRequest{
 		Method:         "GET",
 		Uri:            uri,
