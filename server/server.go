@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	SERVER_HOST  = "127.0.0.1"
+	SERVER_HOST  = "0.0.0.0"
 	SERVER_PORT  = "6636"
 	SERVER_TYPE  = "tcp"
 	BUFFER_SIZE  = 2048
@@ -90,7 +90,7 @@ func HandleConnection(connection net.Conn) {
 
 		requestStr := string(requestData)
 		if strings.Contains(requestStr, "\r\n\r\n") {
-			break 
+			break
 		}
 
 		if n < BUFFER_SIZE {
@@ -189,12 +189,23 @@ func handleGreet(req HttpRequest, path string, query url.Values) HttpResponse {
 		}
 	}
 
-	encoding := determineEncoding(req.AcceptEncoding)
+	encoding, encodingAvailable := determineEncoding(req.AcceptEncoding)
+	if !encodingAvailable {
+		return handle404()
+	}
 
 	if encoding == "gzip" {
-		responseData = compressGzip(responseData)
+		compressedData, err := compressGzip(responseData)
+		if err != nil {
+			return handle404()
+		}
+		responseData = compressedData
 	} else if encoding == "deflate" {
-		responseData = compressDeflate(responseData)
+		compressedData, err := compressDeflate(responseData)
+		if err != nil {
+			return handle404()
+		}
+		responseData = compressedData
 	} else {
 		encoding = "none"
 	}
@@ -234,22 +245,27 @@ func determineContentType(accept string) string {
 	return "application/json"
 }
 
-func determineEncoding(acceptEncoding string) string {
+func determineEncoding(acceptEncoding string) (string, bool) {
 	acceptEncoding = strings.ToLower(acceptEncoding)
 
 	if strings.Contains(acceptEncoding, ",") || strings.Contains(acceptEncoding, "q=") {
-		return "gzip"
+		return "gzip", true
 	}
 
 	if strings.Contains(acceptEncoding, "deflate") {
-		return "deflate"
+		return "deflate", true
 	} else if strings.Contains(acceptEncoding, "gzip") {
-		return "gzip"
+		return "gzip", true
 	} else if acceptEncoding == "none" {
-		return "none"
+		return "none", true
 	}
 
-	return "gzip"
+	// If encoding is not supported, return error
+	if acceptEncoding != "" {
+		return "", false
+	}
+
+	return "gzip", true
 }
 
 func RequestDecoder(bytestream []byte) HttpRequest {
@@ -270,7 +286,7 @@ func RequestDecoder(bytestream []byte) HttpRequest {
 	for i := 1; i < len(lines); i++ {
 		line := lines[i]
 		if line == "" {
-			break 
+			break
 		}
 
 		headerParts := strings.SplitN(line, ": ", 2)
@@ -296,20 +312,35 @@ func RequestDecoder(bytestream []byte) HttpRequest {
 	return req
 }
 
-func compressGzip(data []byte) []byte {
+func compressGzip(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	writer := gzip.NewWriter(&buf)
-	writer.Write(data)
-	writer.Close()
-	return buf.Bytes()
+	_, err := writer.Write(data)
+	if err != nil {
+		return nil, err
+	}
+	err = writer.Close()
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
-func compressDeflate(data []byte) []byte {
+func compressDeflate(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
-	writer, _ := flate.NewWriter(&buf, 6)
-	writer.Write(data)
-	writer.Close()
-	return buf.Bytes()
+	writer, err := flate.NewWriter(&buf, 6)
+	if err != nil {
+		return nil, err
+	}
+	_, err = writer.Write(data)
+	if err != nil {
+		return nil, err
+	}
+	err = writer.Close()
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func ResponseEncoder(res HttpResponse) []byte {
