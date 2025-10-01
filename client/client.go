@@ -2,8 +2,12 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"compress/flate"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -60,7 +64,7 @@ func main() {
 	host := parsedURL.Hostname()
 	port := parsedURL.Port()
 	uri := parsedURL.Path
-	
+
 	if parsedURL.RawQuery != "" {
 		uri += "?" + parsedURL.RawQuery
 	}
@@ -97,12 +101,20 @@ func main() {
 		fmt.Printf("Encoded: %s\n", response.ContentEncoding)
 	}
 
-	bodyStr := strings.TrimSpace(string(response.Data))
+	// Decompress the data if it's compressed
+	decodedData := response.Data
+	if response.ContentEncoding == "gzip" {
+		decodedData = decompressGzip(response.Data)
+	} else if response.ContentEncoding == "deflate" {
+		decodedData = decompressDeflate(response.Data)
+	}
+
+	bodyStr := strings.TrimSpace(string(decodedData))
 	fmt.Printf("Body: %s\n", bodyStr)
 
-	if strings.Contains(response.ContentType, "application/json") && len(response.Data) > 0 {
+	if strings.Contains(response.ContentType, "application/json") && len(decodedData) > 0 {
 		var greetResponse GreetResponse
-		err := json.Unmarshal(response.Data, &greetResponse)
+		err := json.Unmarshal(decodedData, &greetResponse)
 		if err == nil {
 			fmt.Printf("Parsed: %v\n", greetResponse)
 		}
@@ -125,7 +137,7 @@ func Fetch(req HttpRequest, connection net.Conn) HttpResponse {
 		n, err := connection.Read(buffer)
 		if err != nil {
 			if n == 0 {
-				break 
+				break
 			}
 			fmt.Printf("Error reading response: %v\n", err)
 			break
@@ -160,7 +172,7 @@ func Fetch(req HttpRequest, connection net.Conn) HttpResponse {
 		}
 
 		if n < BUFFER_SIZE {
-			break 
+			break
 		}
 	}
 
@@ -189,7 +201,7 @@ func ResponseDecoder(bytestream []byte) HttpResponse {
 		}
 
 		if i == 0 {
-			continue 
+			continue
 		}
 
 		headerParts := strings.SplitN(line, ": ", 2)
@@ -235,4 +247,34 @@ func RequestEncoder(req HttpRequest) []byte {
 	requestBuilder.WriteString("\r\n")
 
 	return []byte(requestBuilder.String())
+}
+
+func decompressGzip(data []byte) []byte {
+	reader, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		fmt.Printf("Error creating gzip reader: %v\n", err)
+		return data
+	}
+	defer reader.Close()
+
+	decompressed, err := io.ReadAll(reader)
+	if err != nil {
+		fmt.Printf("Error decompressing gzip data: %v\n", err)
+		return data
+	}
+
+	return decompressed
+}
+
+func decompressDeflate(data []byte) []byte {
+	reader := flate.NewReader(bytes.NewReader(data))
+	defer reader.Close()
+
+	decompressed, err := io.ReadAll(reader)
+	if err != nil {
+		fmt.Printf("Error decompressing deflate data: %v\n", err)
+		return data
+	}
+
+	return decompressed
 }
