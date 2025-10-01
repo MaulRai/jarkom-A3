@@ -90,7 +90,7 @@ func HandleConnection(connection net.Conn) {
 
 		requestStr := string(requestData)
 		if strings.Contains(requestStr, "\r\n\r\n") {
-			break 
+			break
 		}
 
 		if n < BUFFER_SIZE {
@@ -195,9 +195,8 @@ func handleGreet(req HttpRequest, path string, query url.Values) HttpResponse {
 		responseData = compressGzip(responseData)
 	} else if encoding == "deflate" {
 		responseData = compressDeflate(responseData)
-	} else if encoding == "none" {
 	} else {
-		return handle404()
+		encoding = "none"
 	}
 
 	response := HttpResponse{
@@ -250,7 +249,7 @@ func determineEncoding(acceptEncoding string) string {
 		return "none"
 	}
 
-	return "invalid"
+	return "gzip"
 }
 
 func RequestDecoder(bytestream []byte) HttpRequest {
@@ -271,7 +270,7 @@ func RequestDecoder(bytestream []byte) HttpRequest {
 	for i := 1; i < len(lines); i++ {
 		line := lines[i]
 		if line == "" {
-			break 
+			break
 		}
 
 		headerParts := strings.SplitN(line, ": ", 2)
