@@ -6,6 +6,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net"
@@ -101,7 +102,6 @@ func main() {
 		fmt.Printf("Encoded: %s\n", response.ContentEncoding)
 	}
 
-	// Decompress the data if it's compressed
 	decodedData := response.Data
 	if response.ContentEncoding == "gzip" {
 		decodedData = decompressGzip(response.Data)
@@ -112,10 +112,17 @@ func main() {
 	bodyStr := strings.TrimSpace(string(decodedData))
 	fmt.Printf("Body: %s\n", bodyStr)
 
-	if strings.Contains(response.ContentType, "application/json") && len(decodedData) > 0 {
+	if len(decodedData) > 0 {
 		var greetResponse GreetResponse
-		err := json.Unmarshal(decodedData, &greetResponse)
-		if err == nil {
+		var err error
+
+		if strings.Contains(response.ContentType, "application/json") {
+			err = json.Unmarshal(decodedData, &greetResponse)
+		} else if strings.Contains(response.ContentType, "application/xml") {
+			err = xml.Unmarshal(decodedData, &greetResponse)
+		}
+
+		if err == nil && (strings.Contains(response.ContentType, "application/json") || strings.Contains(response.ContentType, "application/xml")) {
 			fmt.Printf("Parsed: %v\n", greetResponse)
 		}
 	}

@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	SERVER_HOST  = "0.0.0.0"
+	SERVER_HOST  = "127.0.0.1"
 	SERVER_PORT  = "6636"
 	SERVER_TYPE  = "tcp"
 	BUFFER_SIZE  = 2048
